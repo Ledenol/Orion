@@ -1,0 +1,106 @@
+orion-ai/
+├── app/
+│   ├── main.py
+│   ├── bootstrap.py
+│   └── config/
+│       ├── settings.py
+│       ├── profiles.py
+│       └── secrets.py
+│
+├── core/
+│   ├── agent/
+│   │   ├── orchestrator.py
+│   │   ├── planner.py
+│   │   ├── executor.py
+│   │   ├── state.py
+│   │   └── intents.py
+│   │
+│   ├── memory/
+│   │   ├── conversation_memory.py
+│   │   ├── user_memory.py
+│   │   ├── episodic_memory.py
+│   │   └── vector_store.py
+│   │
+│   ├── personality/
+│   │   ├── profile.py
+│   │   ├── prompt_builder.py
+│   │   └── behavior_rules.py
+│   │
+│   ├── skills/
+│   │   ├── registry.py
+│   │   ├── code_assistant.py
+│   │   ├── desktop_control.py
+│   │   ├── web_research.py
+│   │   └── notes_tasks.py
+│   │
+│   ├── events/
+│   │   ├── bus.py
+│   │   ├── event_types.py
+│   │   └── subscribers.py
+│   │
+│   └── ports/
+│       ├── llm.py
+│       ├── speech.py
+│       ├── tts.py
+│       ├── memory.py
+│       ├── tools.py
+│       └── ui.py
+│
+├── interfaces/
+│   ├── voice/
+│   │   ├── wake_word.py
+│   │   ├── stt.py
+│   │   ├── tts.py
+│   │   ├── vad.py
+│   │   └── audio_stream.py
+│   │
+│   ├── llm/
+│   │   ├── openai_client.py
+│   │   ├── groq_client.py
+│   │   └── local_model.py
+│   │
+│   ├── desktop/
+│   │   ├── app_control.py
+│   │   ├── notifications.py
+│   │   ├── clipboard.py
+│   │   └── system_commands.py
+│   │
+│   └── ui/
+│       ├── app_window.py
+│       ├── tray_icon.py
+│       ├── viewmodels/
+│       └── components/
+│
+├── services/
+│   ├── assistant_service.py
+│   ├── voice_session_service.py
+│   ├── task_service.py
+│   ├── memory_service.py
+│   └── skill_service.py
+│
+├── infrastructure/
+│   ├── persistence/
+│   │   ├── sqlite_store.py
+│   │   ├── file_store.py
+│   │   └── embeddings_store.py
+│   │
+│   ├── logging/
+│   │   └── logger.py
+│   │
+│   └── monitoring/
+│       ├── metrics.py
+│       └── tracing.py
+│
+├── tools/
+│   ├── file_tools.py
+│   ├── code_tools.py
+│   ├── web_tools.py
+│   ├── terminal_tools.py
+│   └── git_tools.py
+│
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+│
+└── requirements.txt

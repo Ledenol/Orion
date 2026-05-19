@@ -1,0 +1,31 @@
+Day 2 Log
+Date: [30 April, 2026]
+Goal: Build a web search tool so Orion can answer questions about current events, since llama-3.1-8b-instant has a 2023 knowledge cutoff and hallucinates on recent info.Files worked on:
+
+web_search.py (new)
+assistant_service.py (updated with keyword-based routing)
+response_synthesizer.py (new)
+What I built: I built a web search skill with three search engines as backends — DuckDuckGo (default, free, no key), Tavily (deep research with API key), and Serper (Google results, fallback). Added keyword-based routing inside the search() function — deep research keywords like "study", "analysis", "arxiv" route to Tavily; news keywords like "latest", "today", "yesterday" route to DuckDuckGo with a 24-hour time filter. Built a response synthesizer with build_prompt_with_search() and build_prompt_without_search() so the LLM gets the search results formatted as context with cite-able sources. Updated assistant_service.py to detect when search is needed using a keyword list (SEARCH_TRIGGERS) and route accordingly.What worked: All three engines worked. Routing fell back gracefully — if Tavily failed, Serper picked up; if DuckDuckGo returned nothing, Serper picked up. Results formatted with numbered citations made the LLM cite sources in its answers.Problems faced:
+
+DuckDuckGo returned junk for vague queries like "latest news" (SEO spam landing pages instead of real headlines)
+Serper free tier is a one-time 2,500 credits grant, not monthly renewable like I initially assumed
+Some news queries that should have hit Serper kept going to DuckDuckGo because DDG returned results (just bad ones), so the fallback never triggered
+Duplicate keywords in NEWS_KEYWORDS ("today" appeared twice)
+How I solved them:
+
+Accepted DuckDuckGo limitation for now — added note in code that vague queries return poor results regardless of engine
+Verified actual free tier limits before committing to a stack (Tavily 1k/month renewable, Brave $5/month credit, Serper 2500 one-time)
+Decided to refactor router to send news queries to Serper's /news endpoint specifically, but deferred to later
+Cleaned up keyword lists
+What I learned:
+
+LLM apps with web search depend heavily on the search engine's quality — the LLM can only summarize what it gets
+Fallback should trigger on bad results, not just failed API calls — but distinguishing "bad" from "empty" is harder than it sounds
+Free tier structures vary wildly between API providers — always verify monthly vs one-time before planning
+Adapter pattern thinking: keyword routing belongs in search(), not in the caller
+What is incomplete:
+
+News-specific routing to Serper /news endpoint
+Result quality detection (no way to tell "bad results" from "good but unfamiliar")
+Brave Search not yet added to the stack
+Plan for Day 3: Build the orchestrator — move routing logic out of assistant_service.py into a dedicated core/agent/orchestrator.py. Use an LLM-based classifier instead of keyword routing for skill selection. Service becomes a thin wrapper around the orchestrator.

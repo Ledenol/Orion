@@ -1,0 +1,50 @@
+Date: [19 May, 2026]
+Goal: Refactor orchestrator from binary routing to registry-based dispatch so adding new skills is a single-file change. Standardize the skill interface so the orchestrator doesn't need skill-specific logic anywhere.
+Files worked on:
+
+web_search.py (added web_search_skill() wrapper and format_search_results())
+response_synthesizer.py (replaced binary builders with single build_prompt_with_context())
+orchestrator.py (full refactor of _decide_skills and run)
+test.py (new — end-to-end manual test)
+
+What I built: Designed a uniform skill contract — every skill returns {"skill": str, "success": bool, "data": str, "error": str|None}. Wrote web_search_skill() as an adapter wrapping the raw search() function into the contract, plus format_search_results() to convert raw result dicts into LLM-ready text. Refactored _decide_skills to return {"skills": list[str], "reason": str} so the classifier can request multiple skills (e.g., ["web_search", "calculator"]) instead of binary on/off. Added few-shot examples to the classifier prompt and validation that drops unknown skill names against self.skills registry. Refactored run() to loop through decision["skills"], call each skill, collect results into a list, and pass them all to a generic prompt builder. Wrote build_prompt_with_context() that handles any combination of skill outputs — including the no-skills case — without skill-specific branches.
+What worked: End-to-end test query "What is the latest AI news?" produced a structured, cited answer with sources from the search results. The architecture is genuinely scalable — adding a new skill tomorrow only requires creating a new file with a *_skill() function and registering it in __init__. No changes to run(), no changes to the synthesizer, no changes to the classifier (just adds an entry to the skill description list).
+Problems faced:
+
+First attempt at web_search_skill() had inconsistent dict key capitalization (Success, Data, Error instead of lowercase) — would have silently broken downstream result["success"] checks
+Forgot to return on the empty-results path — function fell through and returned None
+Used if results: filter inside the wrapper which made success: True, data: [] impossible (empty list became implicit None)
+First run() attempt used results = {} (dict) instead of results = [] (list), breaking the synthesizer's [r for r in skill_results] iteration
+Stored error strings instead of contract-compliant dicts on skill failure, which crashed the synthesizer's r["success"] check
+Called build_prompt_with_context with self. prefix even though it's a standalone function, not a method — would have thrown AttributeError
+Memory used {"user": query, "assistant": answer} instead of OpenAI-standard {"role": ..., "content": ...} — fine now but would block multi-turn context later
+search() swallows engine errors internally, so the wrapper can't tell "no results found" from "all engines crashed" — both look like success: True, data: []
+
+How I solved them:
+
+Iterated each function 2-3 times with reviews — caught capitalization, type errors, empty-case handling, contract violations
+For the search() limitation, documented it in the wrapper's docstring as a known issue and moved on rather than restructuring search() mid-refactor
+Added skill name validation in _decide_skills against the registry — invalid names dropped silently rather than crashing
+Made all error paths in run() produce contract-compliant dicts, not strings — "make invalid states unrepresentable"
+Tested end-to-end with test.py instead of just unit-checking individual functions
+
+What I learned:
+
+Adapter pattern — raw utility functions (search()) stay reusable; thin wrappers (web_search_skill()) adapt them to a specific consumer's interface
+Open/Closed Principle — good architecture lets you add features without modifying existing files
+Encapsulation — formatting logic for web search lives in web_search.py, not scattered across the synthesizer. Data and its handling code stay together.
+Make invalid states unrepresentable — uniform shapes (every skill result is the same dict) eliminate whole classes of bugs
+Self-describing data — embedding "skill": "web_search" in the result means downstream code doesn't need external bookkeeping to know what produced it
+LLMs still hallucinate even with search results in context (saw output attribute "SpaceX AI partnership" with weak grounding) — this is the same problem the study assistant project tries to solve with self-evaluation
+Senior engineering = constantly checking function signatures of what you're calling, not coding from memory of the design
+
+What is incomplete:
+
+Hint support in skill calls (Option 3 design deferred — would let classifier suggest what each skill should focus on)
+Better logging — still using print() statements
+File-backed memory persistence
+search() doesn't raise on total engine failure (limitation documented)
+Removed/deprecated build_prompt_with_search and build_prompt_without_search cleanup — they're sitting dead in response_synthesizer.py
+
+Plan for Day 5: Build file_reader skill as the first NEW skill on the refactored architecture. Should plug in without any orchestrator changes — that's the architectural test. Target formats: PDF, TXT, DOCX. Stretch: OCR fallback for messy PDFs using Tesseract or similar.
+Side note for the week: Started LeetCode + Codeforces practice today. Codeforces 1300 first attempt, 5 LeetCode (3 medium, 1 hard, 1 easy). Adding DSA practice as a parallel track because portfolio quality alone won't get past FAANG-level interviews.

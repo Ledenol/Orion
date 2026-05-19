@@ -1,0 +1,31 @@
+orion-ai/
+├── app/
+│   └── main.py
+│
+├── core/
+│   └── agent/
+│       └── orchestrator.py
+│
+├── interfaces/
+│   └── llm/
+│       ├── openai_client.py
+│       ├── groq_client.py
+│       ├── google_client.py
+│       └── local_model.py (Ollama)
+│
+├── services/
+│   └── assistant_service.py
+│
+├── skills/
+│   ├── web_search.py
+│   ├── file_reader.py
+│   └── response_synthesizer.py
+│
+├── utils/
+│   ├── logger.py
+│   └── helpers.py
+│
+├── tests/
+│   └── test_orchestrator.py
+│
+└── requirements.txt

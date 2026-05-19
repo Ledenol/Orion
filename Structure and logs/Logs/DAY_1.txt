@@ -1,0 +1,30 @@
+Day 1 Log
+Date:29, April, 2026
+
+Goal: Developed a CLI-based assistant that processes user input and generates responses using the Groq API. 
+
+Files worked on: .env, 
+		 .gitignore, 
+		  main.py, 
+		  openai_client.py, 
+  		  groq_client.py, 
+		  assistant_service.py
+
+What I built: I built a basic Text based assistant that utilizes my groq API keys for for requests and answers questions, 
+	      the model used was llama-3.1-8b-instant, 
+	      the prompt was "You are Orion, a helpful research assistant."
+
+What worked: Everything worked with a few errors along the way that i resolved
+
+Problems faced: Credits for API requests of OPEN AI was paid, some groq models were discontinued
+
+How I solved them: i used groq api instead for the free tier, 
+		   tested different models and settled with llama-3.1-8b-instant,
+		   Updated configuration dynamically via .env
+
+What I learned: I learnt api calling and the syntax of messages and responses used when defining the generate function() 
+		also learnt about different groq llms and their limitations
+
+What is incomplete: Finished all goals of Day 1
+
+Plan for Day 2: Add tools to facilitate orion as llama-3.1-8b-instant has a cutoff of 2023 data after that is not known so asking anything for current date might make it hallucinate

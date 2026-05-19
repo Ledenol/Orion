@@ -1,0 +1,42 @@
+Day 3 Log
+Date: [17 May, 2026]
+Goal: Build a dedicated orchestrator that handles routing decisions, executes skills, manages conversation flow, and tracks history. Replace keyword-based routing with LLM-based classification.
+Files worked on:
+
+orchestrator.py (new)
+groq_client.py (updated to accept temperature and json_mode parameters)
+assistant_service.py (slimmed down to wrapper)
+
+What I built: Created Orchestrator class with three core methods: __init__ (loads LLM, skills registry, memory list), _decide_skills(query) (LLM-based classifier using a JSON-mode Groq call with temperature=0 to deterministically return {"use_search": bool, "reason": str}), and run(query) (full pipeline — decide → execute skill if needed → build prompt → call LLM → track memory → return). Updated groq_client.py to support temperature and response_format={"type": "json_object"} parameters so the classifier output is reliable JSON. Slimmed assistant_service.py down to a thin wrapper that just forwards calls to the orchestrator.
+What worked: Classifier reliably picked the right routing for clear queries — "What is recursion?" returned use_search: false, "Latest AI news" returned use_search: true. JSON mode prevented markdown-fenced output that would have broken parsing. The fallback chain (LLM fails → search defaults to True) made the system fail-safe rather than fail-silent.
+Problems faced:
+
+Initial classifier sometimes returned strings like "yes" instead of actual booleans, which if decision["use_search"]: evaluated truthy regardless of meaning
+No type validation on the parsed JSON — wrong key names or wrong types would cascade into KeyError or silent miscategorization
+Bare except: clauses caught Ctrl+C and SystemExit
+Initial duplicate skill storage (self.web_search = search AND self.skills["web_search"] = self.web_search) — same reference stored twice
+Prompt template had leading whitespace from triple-quoted indentation that got sent literally to the LLM
+
+How I solved them:
+
+Added type validation after JSON parsing: if not isinstance(decision["use_search"], bool) falls back to safe default
+Switched bare except: to specific except (json.JSONDecodeError, ValueError, KeyError):
+Removed duplicate storage — single source of truth in self.skills dict
+Fixed prompt indentation by flushing left
+Set fallback to use_search: True because over-searching is safer than under-searching
+
+What I learned:
+
+Temperature=0 for classifiers — same input must produce same routing decision. Boltzmann/softmax exploration applied to LLMs.
+JSON mode is necessary but not sufficient — still need type/key validation downstream because LLMs return strings instead of bools occasionally
+Defense in depth — prompt, JSON mode, key check, type check, value validation. Each layer catches different failure modes.
+Single Responsibility — orchestrator decides, service forwards, skills execute. Each file has one job.
+Failed Q4 of the day's review test — couldn't spot the "yes" vs True edge case. Adversarial thinking is a learnable habit.
+
+What is incomplete:
+
+File-backed memory persistence (currently in-memory only, lost on restart)
+Multi-LLM runtime selection (only Groq right now)
+Better logging — still using print() everywhere
+
+Plan for Day 4: Refactor orchestrator to handle multiple skills with a registry/dispatch pattern instead of binary if/else. Replace _decide_skills to return a list of skill names. Make adding new skills (file_reader, calculator, etc.) a one-file change instead of an orchestrator-wide edit.
