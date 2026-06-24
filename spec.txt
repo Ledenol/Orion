@@ -1,0 +1,5 @@
+1-> models action- field - {"Task", "context", "decision prompt", "available tool", "thought", "goal","goal satisfied? prompt","json output format prompt"}-> feed to llm
+2-> first loop ends-{"goal satisfied? prompt check"}->yes? next step, ->no? keep looping
+3->result will be phrased in a json format unique to each tool for example for web search -{{"skills": skill names used (array),"reason": "short explanation"}}
+4->I would say every loop it gives options of tools so to complete the goal it can switch to a more effective tool of needed
+5-> same as i said it stops when the "goal satisfied? prompt" has value True

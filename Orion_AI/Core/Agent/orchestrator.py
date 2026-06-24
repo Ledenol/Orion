@@ -1,4 +1,6 @@
 import json
+from Core.Agent.state import AgentState
+from Core.Agent.schemas import Output, Observation
 from interfaces.llm.groq_client import GroqClient
 from skills.web_search import search, web_search_skill
 from skills.response_synthesizer import build_prompt_with_search, build_prompt_without_search, build_prompt_with_context
@@ -54,10 +56,8 @@ Query: {query}
 
         return decision
     def run(self, query: str) -> str:
-        # 1. Get decision from _decide_skills
         decision = self._decide_skills(query)
     
-        # 2. Execute skills and collect results (list of contract-compliant dicts)
         results = []
     
         for skill_name in decision.get("skills", []):
@@ -75,7 +75,6 @@ Query: {query}
                         "error": str(e)
                     })
             else:
-                # Defensive: shouldn't happen since _decide_skills validates names
                 results.append({
                     "skill": skill_name,
                     "success": False,
@@ -83,15 +82,38 @@ Query: {query}
                     "error": "Skill not found in registry"
                 })
     
-        # 3. Build final prompt with context (standalone function, no self.)
         prompt = build_prompt_with_context(query, results)
     
-        # 4. Generate final answer from LLM
         answer = self.llm.generate(prompt)
-    
-        # 5. Store conversation in memory (standard message format)
+ 
         self.memory.append({"role": "user", "content": query})
         self.memory.append({"role": "assistant", "content": answer})
-    
-        # 6. Return answer
+
         return answer
+
+    CAP_REACHED = "__CAP_REACHED__"
+
+    def run_loop(self, goal: str, get_next_output) -> str:
+        
+        state = AgentState(goal=goal)
+
+        while state.iteration < state.max_iterations:
+            output = get_next_output(state.iteration)
+
+            if output.action == "finish":
+                print(f"Finished after {state.iteration} step(s).")
+                print(output.answer)
+                print("\nHistory:\n" + state.render())
+                return output.answer or ""
+
+            print(f"would run: {output.action} with {output.args}")
+            fake_obs = Observation(
+                success=True,
+                tool=output.action,
+                data="(fake result)",
+            )
+            state.add_step(output, fake_obs)
+
+        print(f"Stopped: hit the cap of {state.max_iterations} iterations.")
+        print(state.render())
+        return self.CAP_REACHED

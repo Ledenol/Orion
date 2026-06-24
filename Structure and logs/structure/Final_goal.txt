@@ -1,106 +1,129 @@
-orion-ai/
-├── app/
-│   ├── main.py
-│   ├── bootstrap.py
-│   └── config/
-│       ├── settings.py
-│       ├── profiles.py
-│       └── secrets.py
+PROJECT ORION – 3-MONTH GOAL
+(Long-term multi-year vision lives in Long_term_vision.txt — that is the north
+star. THIS file is the actionable target for the next 3 months.)
+
+================================================================================
+THE GOAL IN ONE SENTENCE
+================================================================================
+In 3 months, Orion becomes a CLI "secondary developer" — an agent that can read
+my codebase, answer questions about it, make file edits, run commands/tests,
+observe the results, and iterate — grounded by web search and a light memory,
+with multi-LLM routing and a safety gate.
+
+This is the concrete, useful slice of the Year-1 "Build the Brain" goal. It
+deliberately EXCLUDES voice, desktop control, multi-agent systems, and
+production infra. Those come later.
+
+================================================================================
+WHY THIS SCOPE
+================================================================================
+The current code is a single-shot Q&A pipeline (decide -> run skills once ->
+answer). A real developer assistant needs a LOOP: plan -> act -> observe ->
+re-plan. Turning that loop on, plus the file/shell/code-search skills, is what
+converts Orion from "a chatbot with search" into "a junior pair-programmer."
+Everything in this 3-month plan serves that.
+
+================================================================================
+MONTHLY MILESTONES
+================================================================================
+
+MONTH 1 — THE LOOP + CORE SKILLS  ("make it an agent, not a Q&A bot")
+  Definition of done:
+  - orchestrator runs a plan -> act -> observe loop with a max-iteration cap.
+  - Skills: file_read, file_write (gated), shell (gated), code_search (glob+grep).
+  - Human-in-the-loop approval gate for any write/delete/shell action.
+  - Conversation memory survives a multi-turn session.
+  - Replace print() with real logging.
+  Proof: "Read X, add function Y, run the tests" works end-to-end on this repo.
+
+MONTH 2 — CODEBASE COMPETENCE + MEMORY  ("make it understand MY project")
+  Definition of done:
+  - Code navigation good enough to answer "where is X / what calls Y" via
+    glob+grep+read (NO embeddings yet).
+  - File-backed project memory (JSON or SQLite): decisions, facts, file notes.
+  - Multi-LLM clients behind one interface (Groq + OpenAI + 1 more), with a
+    simple router (cheap model classifies/plans, strong model reasons over code).
+  - Eval harness: 8-12 fixed tasks Orion should pass; run them on every change.
+  Proof: Orion explains an unfamiliar file correctly and recalls a past decision.
+
+MONTH 3 — GROUNDING + POLISH + DEMO  ("make it trustworthy and shippable")
+  Definition of done:
+  - Light RAG over docs/code, but ONLY if grep proved insufficient (stretch).
+  - Token/cost logging per request (foundation for later cost routing).
+  - Robust error handling; no crashes on bad LLM output or failed tools.
+  - A clean README + a recorded demo of Orion completing a real coding task.
+  - Optional stretch: tiny web UI (Gradio/Streamlit) or Ollama local model.
+  Proof: a stranger can clone, run, and watch Orion fix a bug in a sample repo.
+
+================================================================================
+ACHIEVABLE 3-MONTH STRUCTURE
+================================================================================
+(* = stretch / only if time allows. Build files when a need forces them — do
+not pre-create empty folders.)
+
+Orion_AI/
+├── App/
+│   └── main.py                  # CLI REPL entry point
 │
-├── core/
-│   ├── agent/
-│   │   ├── orchestrator.py
-│   │   ├── planner.py
-│   │   ├── executor.py
-│   │   ├── state.py
-│   │   └── intents.py
+├── Core/
+│   ├── Agent/
+│   │   ├── orchestrator.py       # top-level coordinator (owns the loop)
+│   │   ├── planner.py            # turn a goal into ordered steps
+│   │   ├── executor.py           # run one step / call one skill, return result
+│   │   └── state.py              # loop state: history, scratchpad, step count
 │   │
 │   ├── memory/
-│   │   ├── conversation_memory.py
-│   │   ├── user_memory.py
-│   │   ├── episodic_memory.py
-│   │   └── vector_store.py
+│   │   ├── conversation_memory.py   # in-session turns (role/content)
+│   │   └── project_memory.py        # file-backed facts/decisions (JSON/SQLite)
 │   │
-│   ├── personality/
-│   │   ├── profile.py
-│   │   ├── prompt_builder.py
-│   │   └── behavior_rules.py
-│   │
-│   ├── skills/
-│   │   ├── registry.py
-│   │   ├── code_assistant.py
-│   │   ├── desktop_control.py
-│   │   ├── web_research.py
-│   │   └── notes_tasks.py
-│   │
-│   ├── events/
-│   │   ├── bus.py
-│   │   ├── event_types.py
-│   │   └── subscribers.py
-│   │
-│   └── ports/
-│       ├── llm.py
-│       ├── speech.py
-│       ├── tts.py
-│       ├── memory.py
-│       ├── tools.py
-│       └── ui.py
+│   └── safety/
+│       └── approval.py           # human-in-the-loop gate for risky actions
 │
 ├── interfaces/
-│   ├── voice/
-│   │   ├── wake_word.py
-│   │   ├── stt.py
-│   │   ├── tts.py
-│   │   ├── vad.py
-│   │   └── audio_stream.py
-│   │
-│   ├── llm/
-│   │   ├── openai_client.py
-│   │   ├── groq_client.py
-│   │   └── local_model.py
-│   │
-│   ├── desktop/
-│   │   ├── app_control.py
-│   │   ├── notifications.py
-│   │   ├── clipboard.py
-│   │   └── system_commands.py
-│   │
-│   └── ui/
-│       ├── app_window.py
-│       ├── tray_icon.py
-│       ├── viewmodels/
-│       └── components/
+│   └── llm/
+│       ├── base.py               # LLMClient interface (generate, etc.)
+│       ├── groq_client.py
+│       ├── openai_client.py
+│       ├── gemini_client.py *    # third provider
+│       ├── ollama_client.py *    # local model
+│       └── router.py             # choose model by task / cost
 │
 ├── services/
-│   ├── assistant_service.py
-│   ├── voice_session_service.py
-│   ├── task_service.py
-│   ├── memory_service.py
-│   └── skill_service.py
+│   └── assistant_service.py      # thin app-facing wrapper
+│
+├── skills/
+│   ├── registry.py               # central skill registration + contract
+│   ├── web_search.py             # (exists) DDG / Serper / Tavily
+│   ├── response_synthesizer.py   # (exists) build grounded prompt
+│   ├── file_read.py              # read file / line range
+│   ├── file_write.py             # create/edit file  (gated)
+│   ├── shell.py                  # run command, capture output (gated)
+│   ├── code_search.py            # glob + grep over a repo
+│   └── rag.py *                  # embed + retrieve over docs/code
 │
 ├── infrastructure/
-│   ├── persistence/
-│   │   ├── sqlite_store.py
-│   │   ├── file_store.py
-│   │   └── embeddings_store.py
-│   │
 │   ├── logging/
-│   │   └── logger.py
-│   │
-│   └── monitoring/
-│       ├── metrics.py
-│       └── tracing.py
+│   │   └── logger.py             # replaces scattered print()
+│   └── persistence/
+│       └── store.py              # sqlite/json helpers used by memory
 │
-├── tools/
-│   ├── file_tools.py
-│   ├── code_tools.py
-│   ├── web_tools.py
-│   ├── terminal_tools.py
-│   └── git_tools.py
+├── utils/
+│   └── config.py                 # env + settings loading (one place)
 │
 ├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
+│   ├── tests_baseline.py         # (exists) characterization tests
+│   ├── test_orchestrator.py
+│   ├── test_skills.py
+│   └── evals/
+│       └── tasks.py              # fixed task set: "can Orion do X" + scoring
 │
+├── .env
 └── requirements.txt
+
+================================================================================
+EXPLICITLY OUT OF SCOPE FOR 3 MONTHS
+================================================================================
+Voice / wake word / STT / TTS · desktop & system control · multi-agent / judge
+agents · events bus · personality engine · episodic/vector memory at scale ·
+monitoring/tracing infra · plugin marketplace · Hugging Face deployment (a tiny
+local UI is the only optional UI).

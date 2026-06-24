@@ -1,0 +1,55 @@
+PROJECT ORION – LONG-TERM VISION (NORTH STAR, NOT A TODO LIST)
+
+This is the multi-year direction. It exists to keep decisions pointed the right
+way. Do NOT build for these milestones directly — build the 3-month goal
+(see Final_goal.txt) and let real friction pull the rest forward.
+
+Orion is a modular, model-agnostic AI coworker and personal AI operating system
+for software development, research, learning, planning, and productivity.
+
+YEAR 1 – BUILD THE BRAIN
+- Multi-LLM support (Groq, OpenAI, Gemini, Ollama, future providers)
+- Intelligent Orchestrator (decision making)
+- Planner + Executor architecture
+- Web research (DuckDuckGo, Serper, Tavily)
+- Custom RAG pipeline
+- Long-term memory system
+- Codebase understanding
+- File reading and analysis
+- Task and notes management
+- Model routing
+- Local LLM support via Ollama
+- UI and deployment (Hugging Face)
+End state: an AI development and research assistant that understands projects,
+searches the web, reasons over documents, remembers context, and helps code.
+
+YEAR 2 – BUILD THE BODY
+Voice activation, wake word, continuous background operation, desktop control,
+system integration, notifications/automation, token+cost tracking, advanced
+model routing, multi-agent coordination.
+End state: a personal AI operating assistant — voice commands, workflow
+automation, intelligent AI resource management.
+
+YEAR 3+ – MULTI-AGENT INTELLIGENCE
+Cooperative + competitive multi-agent systems; specialized agents (Research,
+Coding, Planning, Memory, Review); self-improving workflows; advanced reasoning
+chains; autonomous task execution.
+Example: Goal -> Planner -> Research -> Coding -> Review -> Orion synthesizes.
+For critical tasks: Claude Code vs Codex vs others -> Judge agent -> best pick.
+
+YEAR 4+ – PRODUCTION PLATFORM
+Production infra, monitoring/observability, analytics/tracing, distributed
+execution, scalability, reliability, security, cost optimization, plugin
+ecosystem, agent marketplace.
+
+FINAL END STATE
+Orion is not a chatbot. It is a model-agnostic AI coworker / AI operating system
+that understands codebases, performs research, manages long-term memory, executes
+tasks, coordinates multiple agents, routes between local and cloud models, uses
+RAG for grounded knowledge, tracks cost/performance, and operates as a personal
+AI teammate.
+
+MISSION
+Build an AI system that evolves from an assistant into a true AI coworker capable
+of collaborating with humans and coordinating specialized agents to solve complex
+problems.

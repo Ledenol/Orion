@@ -1,31 +1,50 @@
 Day 2 Log
-Date: [30 April, 2026]
-Goal: Build a web search tool so Orion can answer questions about current events, since llama-3.1-8b-instant has a 2023 knowledge cutoff and hallucinates on recent info.Files worked on:
+Date: 30 April, 2026
 
-web_search.py (new)
-assistant_service.py (updated with keyword-based routing)
-response_synthesizer.py (new)
-What I built: I built a web search skill with three search engines as backends — DuckDuckGo (default, free, no key), Tavily (deep research with API key), and Serper (Google results, fallback). Added keyword-based routing inside the search() function — deep research keywords like "study", "analysis", "arxiv" route to Tavily; news keywords like "latest", "today", "yesterday" route to DuckDuckGo with a 24-hour time filter. Built a response synthesizer with build_prompt_with_search() and build_prompt_without_search() so the LLM gets the search results formatted as context with cite-able sources. Updated assistant_service.py to detect when search is needed using a keyword list (SEARCH_TRIGGERS) and route accordingly.What worked: All three engines worked. Routing fell back gracefully — if Tavily failed, Serper picked up; if DuckDuckGo returned nothing, Serper picked up. Results formatted with numbered citations made the LLM cite sources in its answers.Problems faced:
+WHAT I DID (plain words)
+I gave Orion the ability to search the web, so it can answer questions about
+recent things. (The AI model only knows up to 2023, so without search it guesses
+on anything newer.)
 
-DuckDuckGo returned junk for vague queries like "latest news" (SEO spam landing pages instead of real headlines)
-Serper free tier is a one-time 2,500 credits grant, not monthly renewable like I initially assumed
-Some news queries that should have hit Serper kept going to DuckDuckGo because DDG returned results (just bad ones), so the fallback never triggered
-Duplicate keywords in NEWS_KEYWORDS ("today" appeared twice)
-How I solved them:
+Files: web_search.py (new), assistant_service.py (updated),
+       response_synthesizer.py (new)
 
-Accepted DuckDuckGo limitation for now — added note in code that vague queries return poor results regardless of engine
-Verified actual free tier limits before committing to a stack (Tavily 1k/month renewable, Brave $5/month credit, Serper 2500 one-time)
-Decided to refactor router to send news queries to Serper's /news endpoint specifically, but deferred to later
-Cleaned up keyword lists
-What I learned:
+HOW IT WORKS
+   - Three search engines, each a backup for the others:
+        DuckDuckGo = the default, free, no key needed.
+        Tavily     = good for deep research (needs a key).
+        Serper     = Google results, used as a backup.
+   - Simple "keyword routing": if the question has words like "study" or "arxiv"
+     -> send to Tavily; if it has words like "latest" or "today" -> send to
+     DuckDuckGo and only look at the last 24 hours.
+   - response_synthesizer.py formats the search results neatly so the AI can read
+     them and quote the sources.
+   - If one engine fails or returns nothing, the next one takes over.
 
-LLM apps with web search depend heavily on the search engine's quality — the LLM can only summarize what it gets
-Fallback should trigger on bad results, not just failed API calls — but distinguishing "bad" from "empty" is harder than it sounds
-Free tier structures vary wildly between API providers — always verify monthly vs one-time before planning
-Adapter pattern thinking: keyword routing belongs in search(), not in the caller
-What is incomplete:
+WHAT WENT WELL
+All three engines worked, the backups kicked in correctly, and showing numbered
+sources made the AI quote them in its answers.
 
-News-specific routing to Serper /news endpoint
-Result quality detection (no way to tell "bad results" from "good but unfamiliar")
-Brave Search not yet added to the stack
-Plan for Day 3: Build the orchestrator — move routing logic out of assistant_service.py into a dedicated core/agent/orchestrator.py. Use an LLM-based classifier instead of keyword routing for skill selection. Service becomes a thin wrapper around the orchestrator.
+PROBLEMS AND FIXES
+   - DuckDuckGo gave junk for vague questions like "latest news" (spam pages, not
+     real headlines). Left a note in the code and moved on.
+   - I assumed Serper's free credits refill monthly -> they don't, it's a
+     one-time 2,500. I checked each provider's real limits before deciding.
+   - Some news questions kept going to DuckDuckGo (it returned SOMETHING, just
+     bad), so the backup never triggered. Hard to tell "bad" from "nothing."
+   - "today" was in my keyword list twice -> cleaned up.
+
+WHAT I LEARNED
+   - A web-search AI is only as good as the search engine behind it -- the AI can
+     only summarize what it's given.
+   - Backups should trigger on BAD results too, not just failed connections --
+     but telling "bad" from "empty" is harder than it sounds.
+   - Free tiers differ a lot between providers -- always check before planning.
+
+WHAT'S INCOMPLETE
+News-specific search, a way to detect bad results, Brave Search not added yet.
+
+WHAT'S NEXT (Day 3)
+Move the "decide what to do" logic out of the service into its own file (the
+orchestrator), and let the AI decide whether to search instead of using a fixed
+keyword list.

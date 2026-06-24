@@ -1,0 +1,65 @@
+Day 5 Log
+Date: 23 June, 2026
+
+WHAT I DID (plain words)
+I stopped building for a day and did two things: (1) made a realistic plan, and
+(2) learned the core idea behind the "thinking agent" I'm about to build.
+
+THE RE-PLAN
+   - I narrowed Orion down to a clear 3-MONTH goal: a terminal helper that can
+     read my code, answer questions about it, edit files, run commands, see the
+     results, and keep going -- basically a junior developer assistant.
+   - I kept my big long-term dream (voice, many agents, etc.) in a separate file
+     as a "north star," and made the main goal file the realistic 3-month version.
+     I also made an Excel plan (Orion_Build_Plan.xlsx) with a week-by-week list.
+   - I realized the current Orion answers in ONE shot. A real dev assistant needs
+     a LOOP: think -> do one thing -> look -> think again. Turning that loop on is
+     the whole job for Month 1.
+
+THE BIG IDEA I LEARNED  (ReAct = "Reason + Act")
+   - An AI model can only turn text into text. It can't actually DO anything, it
+     forgets between messages, and it only knows things up to its training date.
+   - So the LOOP has to live in MY code, not the model. The model SAYS what it
+     wants to do (as text); my code DOES it and feeds the result back.
+     Short version: "the model suggests, my code does."
+   - The model should write its REASONING before choosing an action -- that makes
+     its choices better. It's "thinking out loud," and that thinking shapes the
+     next decision.
+   - The loop is simple, the model is smart: my code does NOT judge whether the
+     goal is met. It only checks "did the model say 'finish'?" The model decides
+     it's done by choosing the "finish" action.
+   - I don't write a question like "did I get the answer yet?" for every goal. I
+     write ONE general rule ("if you have enough, finish; else use a tool") plus
+     good tool descriptions, and the model works it out for any goal.
+
+WHERE "SMARTS" COME FROM  (helps me pick models later)
+   - A model learns to follow my format/rules during "instruction tuning," and
+     learns good step-by-step judgment during "RLHF" (a training step). A tiny or
+     untrained model skips these and breaks: first it ignores my format, then it
+     stops or loops at the wrong time. The loop can USE smarts, not CREATE them.
+   - Web search (RAG) gives the model better FACTS, but not better THINKING. Two
+     different things.
+   - A "judge" AI that double-checks the answer is a real, useful idea -- but it's
+     for LATER. It is NOT how the loop stops.
+
+WHAT I DESIGNED  (the action format, in spec.txt)
+   - Two directions:
+        What I send the model each turn (INPUT): goal, history so far, the tools
+        it can use, the rules, and the answer format.
+        What the model sends back (OUTPUT): action, args (details), reason. And to
+        stop: action "finish" + the answer.
+        The result of an action (OBSERVATION): success, tool, data, error -- the
+        same shape as my Day-4 skill format.
+   - Two ways the loop stops: the model says "finish", OR my code stops it after a
+     set number of turns (so it can't run forever).
+
+WHAT I'M CHANGING GOING FORWARD
+   - Add a tool called Pydantic to check the model's JSON answers are valid.
+   - Build the think-act-look loop to replace the one-shot version.
+   - NOT yet: LangGraph (a framework that would hide the loop I need to learn
+     first), a local AI model, and the big search/RAG setup from my LAKA notes --
+     those are for later.
+
+WHAT'S NEXT (Day 6)
+Start building: the data shapes, the memory (state), and a bare loop using a fake
+stand-in instead of the real AI.

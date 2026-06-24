@@ -1,0 +1,95 @@
+Day 6 Log
+Date: [24 June, 2026]
+
+WHAT TODAY WAS ABOUT (in plain words)
+I started actually BUILDING the new "thinking agent" version of Orion.
+The OLD Orion answered in one shot. The NEW one works in a LOOP:
+   think -> do one thing -> look at the result -> think again -> repeat,
+until it decides it is done.
+Today I built the first working version of that loop. I used a FAKE stand-in
+instead of the real AI, just to prove the loop itself works.
+
+THE 4 "SHAPES" I BUILT  (schemas.py)
+These are just templates that say "this kind of info always looks like this."
+Think of them as labelled boxes.
+- Input       = what we hand TO the AI each turn
+                (the goal, the tools it can use, the rules, the answer format).
+- Output      = what the AI hands BACK each turn:
+                  action  = what it wants to do
+                  reason  = why
+                  args    = the details for that action
+                  answer  = filled in ONLY when it is finished
+- Observation = the result after doing one action
+                  (did it work? what did it return? any error?).
+- HistoryStep = one full turn bundled = one Output + the Observation after it.
+                It REUSES Output and Observation instead of copying their fields,
+                so if I change Output later, HistoryStep updates automatically.
+
+THE AGENT'S NOTEBOOK  (state.py = AgentState)
+This is the agent's memory for ONE task. It holds:
+   - the goal,
+   - the list of steps taken so far (a list of HistoryStep),
+   - the max number of steps allowed (a safety limit).
+It can do two things:
+   - add_step : write a finished turn into the notebook.
+   - render   : turn the whole notebook into readable text, so the AI can
+                re-read "here is everything I have done so far."
+WHY render matters: the AI forgets everything between turns, so every turn I
+have to remind it by sending the whole history back to it as text.
+
+THE LOOP ITSELF  (run_loop in orchestrator.py)
+This is the engine. Each turn it:
+   1. asks for the next action,
+   2. if the action is "finish" -> stop and return the answer,
+   3. otherwise -> pretend to do it, write down a fake result, loop again,
+   4. it ALWAYS stops after the safety limit, so it can never loop forever.
+Two ways it stops:
+   - the AI says "finish"  (the normal stop), OR
+   - it hits the step limit (the safety stop).
+
+THE BIG TRICK I LEARNED  (injection = "give the loop its brain from outside")
+Instead of building the "brain" (the thing that decides the next action) INSIDE
+the loop, I made the loop TAKE the brain as an input from outside.
+   - Right now I pass in a FAKE brain to test the loop.
+   - Later I pass in the REAL AI (Groq) and DO NOT change the loop at all.
+Same loop, just swap the brain.
+
+WHY A FAKE BRAIN  (a "stub")
+A stub is a pretend version that returns answers I wrote by hand. I used it so I
+could test the LOOP on its own, without the real AI's randomness getting in the
+way. If something breaks, I know it is the loop, not the AI.
+
+WHAT I TESTED
+   1. Fake brain that finishes after 2 steps -> loop ran 2 steps, stopped, gave
+      the answer.  WORKED.
+   2. Fake brain that never finishes -> loop ran until the limit (8) and stopped
+      safely.  WORKED.
+
+THINGS I KEPT GETTING WRONG (and fixed)
+   - Wrote methods OUTSIDE the class instead of indented INSIDE it.
+   - Python rule: in these templates, fields WITH a default value must come
+     AFTER fields without one.
+   - Do not use a plain []  as a list default -> use field(default_factory=list),
+     or every agent would secretly share ONE list.
+   - My render text was squished on one line: I forgot the line breaks (\n).
+   - I forgot to show the actual result ("data") in the history, so the AI could
+     see "it worked" but not WHAT it found.
+
+LESSON OF THE DAY
+Testing felt harder than writing the code itself. That is normal. Making
+something easy to test FORCES you to build it cleanly. The "injection" trick I
+struggled with is exactly what makes the loop both testable now AND ready for
+the real AI later. Messy code is usually hard-to-test code.
+
+WHAT IS DONE
+   - schemas.py  (the 4 shapes)                 done
+   - state.py    (notebook: add_step + render)  done + tested
+   - run_loop    (the engine)                   done + tested both stops
+
+WHAT IS NEXT (Day 7 plan)
+Swap the fake brain for the REAL AI (Groq). That means:
+   - build the text we send the AI (goal + tools + rules + history from render),
+   - call Groq,
+   - take Groq's JSON reply and turn it into an Output, and check it is valid
+     (using a tool called Pydantic).
+After that, the loop stops being a puppet and actually starts thinking.

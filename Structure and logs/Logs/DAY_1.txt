@@ -1,30 +1,35 @@
 Day 1 Log
-Date:29, April, 2026
+Date: 29 April, 2026
 
-Goal: Developed a CLI-based assistant that processes user input and generates responses using the Groq API. 
+WHAT I DID (plain words)
+I built the first, simplest version of Orion: a text assistant you talk to in
+the terminal. You type a question, it sends it to an AI model online (through a
+service called Groq), and prints the answer back.
 
-Files worked on: .env, 
-		 .gitignore, 
-		  main.py, 
-		  openai_client.py, 
-  		  groq_client.py, 
-		  assistant_service.py
+Files: .env, .gitignore, main.py, openai_client.py, groq_client.py,
+       assistant_service.py
 
-What I built: I built a basic Text based assistant that utilizes my groq API keys for for requests and answers questions, 
-	      the model used was llama-3.1-8b-instant, 
-	      the prompt was "You are Orion, a helpful research assistant."
+HOW IT WORKS
+   - main.py            = the chat loop (ask question -> print answer -> repeat).
+   - groq_client.py     = the part that actually talks to the AI over the internet.
+   - assistant_service.py = a thin middle layer between the chat loop and the AI.
+   - .env               = where I keep my secret API key, out of the code.
+The model I used: llama-3.1-8b-instant.
+The instruction I gave it: "You are Orion, a helpful research assistant."
 
-What worked: Everything worked with a few errors along the way that i resolved
+WHAT WENT WELL
+It worked, after fixing a few small errors.
 
-Problems faced: Credits for API requests of OPEN AI was paid, some groq models were discontinued
+PROBLEMS AND FIXES
+   - OpenAI's API costs money, so I switched to Groq's free option.
+   - Some Groq models had been shut down; I tried a few and settled on
+     llama-3.1-8b-instant.
+   - I kept the model name in the .env file so it's easy to change.
 
-How I solved them: i used groq api instead for the free tier, 
-		   tested different models and settled with llama-3.1-8b-instant,
-		   Updated configuration dynamically via .env
+WHAT I LEARNED
+   - How to call an AI API: the "messages in, response out" pattern.
+   - The different Groq models and their limits.
 
-What I learned: I learnt api calling and the syntax of messages and responses used when defining the generate function() 
-		also learnt about different groq llms and their limitations
-
-What is incomplete: Finished all goals of Day 1
-
-Plan for Day 2: Add tools to facilitate orion as llama-3.1-8b-instant has a cutoff of 2023 data after that is not known so asking anything for current date might make it hallucinate
+WHAT'S NEXT (Day 2)
+This model only knows things up to 2023. Ask about anything newer and it makes
+stuff up. So next I'll add a web-search tool so Orion can look things up.
