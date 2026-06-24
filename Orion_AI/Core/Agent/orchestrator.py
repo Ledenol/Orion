@@ -47,8 +47,7 @@ Query: {query}
             return {"skills": ["web_search"], "reason": "classifier failed to parse JSON"}
         if "skills" not in decision or "reason" not in decision:
             return {"skills": ["web_search"], "reason": "classifier returned malformed keys"}
-        if "skills" not in decision or "reason" not in decision:
-            return {"skills": ["web_search"], "reason": "classifier returned malformed keys"}
+        
         if not isinstance(decision["skills"], list) or not isinstance(decision["reason"], str):
             return {"skills": ["web_search"], "reason": "skill field was not a list"}
         decision["skills"] = [skill for skill in decision["skills"] if skill in VALID_SKILLS]
