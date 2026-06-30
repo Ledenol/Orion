@@ -1,85 +1,31 @@
-def build_prompt_with_search(query: str, results: list[dict]) -> str:
-    """
-    Injects web search results into the LLM prompt so Groq can
-    reason over fresh data instead of relying on its training cutoff.
-    """
-    if not results:
-        return query  # No results — just send raw query
- 
-    # Format search results into readable context
-    context_lines = []
-    for i, r in enumerate(results, 1):
-        context_lines.append(
-            f"[{i}] {r['title']}\n"
-            f"    Source: {r['url']}\n"
-            f"    {r['snippet']}"
-        )
- 
-    context = "\n\n".join(context_lines)
-    source_used = results[0].get("source", "Web") if results else "Web"
- 
-    prompt = f"""You are Orion, a helpful research assistant with access to live web search results.
- 
-The following search results were retrieved from the web to help answer the user's question.
-Use them as your primary source of information. Cite sources where relevant.
-Do not rely on your training data for facts that may have changed — trust the search results.
- 
-Search source: {source_used}
- 
---- SEARCH RESULTS ---
-{context}
---- END OF RESULTS ---
- 
-User Question: {query}
- 
-Answer clearly and concisely based on the search results above:"""
- 
-    return prompt
- 
- 
-def build_prompt_without_search(query: str) -> str:
-    """
-    Standard prompt when no web search is needed.
-    """
-    return f"""You are Orion, a helpful research assistant.
- 
-Answer the following question as accurately as possible.
-If you are unsure or if this requires current information you may not have, say so clearly.
- 
-Question: {query}"""
-def build_prompt_with_context(query: str, skill_results: list[dict]) -> str:
-    """
-    Builds an LLM prompt incorporating any successful skill outputs.
-    Each skill's pre-formatted data is included as a section.
-    If no skills ran or all failed, returns a basic prompt.
-    """
-    # Filter to successful skills only
-    successful = [r for r in skill_results if r["success"]]
-    
-    if not successful:
-        return f"""You are Orion, a helpful research assistant.
+def build_prompt(state, tools) -> str:
+    tool_lines = []
+    for tool in tools.values():
+        tool_lines.append(f"- {tool.name}: {tool.description}")
+    tool_lines.append('- finish: ends the task. put your final answer in "answer".')
+    tools_text = "\n".join(tool_lines)
+    return f"""You are Orion, an agent that completes a goal by choosing ONE action per turn.
 
-Answer the following question as accurately as possible.
-If you are unsure or this requires current information you may not have, say so clearly, do not assume anything.
+Tools you can use:
+{tools_text}
 
-Question: {query}"""
-    
-    # Build sections from each successful skill's data
-    sections = []
-    for result in successful:
-        skill_name = result["skill"]
-        section = f"--- {skill_name.upper()} RESULTS ---\n{result['data']}\n--- END {skill_name.upper()} ---"
-        sections.append(section)
-    
-    context = "\n\n".join(sections)
-    
-    return f"""You are Orion, an AI research assistant with access to tool outputs.
+Rules:
+- Think first, in "reason".
+- Choose exactly ONE action per turn.
+- If you have enough to answer the goal, use the "finish" action.
+- Reply with JSON only, nothing else.
+- File paths are relative to the project root (current working directory).
+- Use paths exactly as given, e.g. "App/main.py". Never invent absolute paths like "/path/to/...".
+- Use "finish" AS SOON AS you can answer the goal. Do NOT gather more than the goal needs.
+- When you use the finish action, put a clear, complete answer in the answer field — in your own words, addressing the goal, based on what you found.
+- If your history already contains search results relevant to the goal, you MUST use finish now. NEVER run a search you have already run.
+- When you finish synthesize the reponses yourself in a bullet point manner with MINIMUM 5 points
+Reply in EXACTLY this JSON shape:
+{{"reason": "...", "action": "...", "args": {{ }}, "answer": "..."}}
 
-The following information was gathered by your tools to help answer the user's question.
-Use this as your primary source. Cite sources where relevant.
+Goal: {state.goal}
 
-{context}
+What you have done so far:
+{state.render()}
 
-User Question: {query}
-
-Answer clearly and concisely based on the context above."""
+What is your next action? Respond with JSON only."""

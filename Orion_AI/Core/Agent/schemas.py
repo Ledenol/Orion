@@ -1,5 +1,6 @@
 from dataclasses import dataclass , field 
 from typing import Any, Optional
+from typing import Callable
 @dataclass
 class Input:
     goal : str
@@ -23,3 +24,8 @@ class HistoryStep:
     iteration: int
     output : Output
     observation: Optional[Observation] = None
+@dataclass
+class Tool:
+    name: str
+    description: str
+    run: Callable[[dict], Observation] 

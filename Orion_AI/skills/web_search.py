@@ -2,6 +2,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from ddgs import DDGS
+from Core.Agent.schemas import Observation
 
 load_dotenv()
 
@@ -119,30 +120,32 @@ def format_search_results(results: list[dict]) -> str:
         lines.append(f"[{i}] {title}\n    {snippet}\n    Source: {url}")
     return "\n\n".join(lines)
 
-def web_search_skill(query: str) -> dict:
-    """
-    Orion skill wrapper for web search.
-
-    note: search() internally catches engine-level errors and returns [].
-    This wrapper cannot distinguish "no results found" from "all engines failed."
-    Both will return {success: True, data: []}. To fix, search() should raise
-    on total failure (all engines exhausted) so the wrapper can catch it.
-    """
+def search_response_adapter(args:dict)->Observation:
+    query = args.get("query")
+    if query is None:
+        return Observation(
+            success= False,
+            tool= "web_search",
+            data = None,
+            error = "No query provided",
+        )
     try:
-        results = search(query)
-        return {
-            "skill": "web_search",
-            "success": True,
-            "data": format_search_results(results),  # now a string
-            "error": None
-        }
+        raw_contents = search(query,5)
+        contents = format_search_results(raw_contents)
+        return Observation(
+            success = True,
+            tool= "web_search",
+            data = contents,
+            error = None,
+        )
     except Exception as e:
-        return {
-            "skill": "web_search",
-            "success": False,
-            "data": None,
-            "error": str(e)
-        }
+        return Observation(
+            success= False,
+            tool= "web_search",
+            data= None,
+            error = str(e),
+            )
+
 
 # --- Main Router ---
 def search(query: str, num_results: int = 5) -> list[dict]:

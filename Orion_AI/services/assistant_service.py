@@ -11,4 +11,4 @@ class AssistantService:
         if not query:
             return "I need a question to help you."
         
-        return self.orchestrator.run(query)
+        return self.orchestrator.run_loop(query)

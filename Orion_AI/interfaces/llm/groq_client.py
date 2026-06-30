@@ -16,14 +16,23 @@ class GroqClient:
 
         self.client = Groq(api_key=api_key)
 
-    def generate(self, prompt: str, temperature: float = 0.7, json_mode: bool = False) -> str:
+    def generate(
+        self,
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        json_mode: bool = False,
+    ) -> str:
+
         kwargs = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
+            "max_completion_tokens": max_tokens,
         }
+
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-    
+
         response = self.client.chat.completions.create(**kwargs)
         return response.choices[0].message.content.strip()
