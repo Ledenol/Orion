@@ -1,0 +1,174 @@
+DAY 7 PLAN — Tool registry (learn Callable) -> then Groq brain
+================================================================
+Work through this top to bottom. Do the SELF-CHECK after each task before moving
+on. If a self-check fails, the bug is in THAT task — don't move forward. Take
+your time; you always get there.
+
+WHERE YOU ARE (already working):
+  - schemas.py      : Input, Output, Observation, HistoryStep
+  - state.py        : AgentState (add_step, render)  -- tested
+  - file_read       : skills/file_read.py            -- tested
+  - build_prompt    : response_synthesizer.py (simple, tools hardcoded) -- prints OK
+  - run_loop        : orchestrator.py (works with a stub)
+
+PRINCIPLE FOR TODAY: "Make it work, then make it clean."
+You built the simple hardcoded build_prompt first. Now you refactor it to the
+generic Tool-registry version (the better design). Same move as the loop:
+crude first, clean after. The registry was deferred ONE step, not dropped — this
+is that step.
+
+
+----------------------------------------------------------------
+TASK 1 — The `Tool` dataclass  (this is where you learn Callable)
+----------------------------------------------------------------
+CONCEPT — Callable:
+  A type hint is just a label saying what a field holds:
+     name: str        -> holds text
+     count: int       -> holds a number
+     run: Callable    -> holds a FUNCTION (something you can call with () )
+  The detailed form  Callable[[dict], Observation]  reads as:
+     "a function that takes a dict and returns an Observation"
+  It is ONLY a label. It does nothing by itself. (A function is a value in
+  Python — you already passed one around during injection: get_next_output held
+  your stub. Storing one in a dataclass field is the same idea.)
+
+BUILD (put this in schemas.py, near your other dataclasses):
+  from typing import Callable
+
+  @dataclass
+  class Tool:
+      name: str
+      description: str
+      run: Callable[[dict], Observation]
+
+  Remember: when you create a Tool, you pass the function BY NAME, no ():
+      Tool(name="file_read", description="...", run=file_read)   # run=file_read, NOT file_read()
+  Later you CALL it with ():  some_tool.run({"path": "..."})
+
+SELF-CHECK (in a scratch test):
+  from skills.file_read import file_read
+  t = Tool(name="file_read", description="reads a file. args: {path}", run=file_read)
+  print(t.name, "->", t.description)
+  print(t.run({"path": "App/main.py"}))   # should print a success Observation
+  -> If t.run({...}) returns the same Observation as calling file_read directly,
+     you understand Callable. Done.
+
+
+----------------------------------------------------------------
+TASK 2 — The tool registry
+----------------------------------------------------------------
+CONCEPT:
+  ONE dict mapping name -> Tool. Single source of truth. Two consumers:
+    - build_prompt reads each tool's .description (to tell Groq its options)
+    - the loop reads .run (to actually run the chosen tool, later)
+  Adding a tool later = add ONE entry here. Nothing else changes. (Open/Closed.)
+
+BUILD (a registry; put it where the orchestrator can reach it — e.g. top of
+orchestrator.py, or a small tools.py you import):
+  from skills.file_read import file_read
+
+  TOOLS = {
+      "file_read": Tool(
+          name="file_read",
+          description='reads a file. args: {"path": "<file path>"}',
+          run=file_read,
+      ),
+  }
+
+  NOTE: "finish" is NOT in here. finish has no function to run — it is a special
+  signal the loop handles itself. You only register REAL, runnable tools.
+
+SELF-CHECK:
+  for name, tool in TOOLS.items():
+      print(name, "->", tool.description)
+  print(TOOLS["file_read"].run({"path": "App/main.py"}))   # success Observation
+  -> One line per tool, and dispatch via the dict works. Done.
+
+
+----------------------------------------------------------------
+TASK 3 — Make build_prompt GENERIC (use the registry)
+----------------------------------------------------------------
+CONCEPT:
+  Right now build_prompt has the tool list typed out by hand. Change it so the
+  "Tools you can use" section is BUILT BY LOOPING the registry. Then adding a
+  tool makes it appear in the prompt automatically — no edit to build_prompt.
+
+BUILD:
+  1. Change the signature to take the tools too:
+        def build_prompt(state, tools) -> str:
+  2. Build the tools section by looping the registry. Example:
+        tool_lines = []
+        for tool in tools.values():
+            tool_lines.append(f"- {tool.name}: {tool.description}")
+        tool_lines.append('- finish: ends the task. put your final answer in "answer".')
+        tools_text = "\n".join(tool_lines)
+     (finish is added by hand because it's not in the registry.)
+  3. Drop `tools_text` into your existing prompt where the hardcoded tool lines
+     used to be:  ...Tools you can use:\n{tools_text}\n...
+     Keep everything else the same (job, rules, JSON format, goal, render, close).
+     REMEMBER the f-string brace rule: literal { } in your JSON example must be
+     doubled {{ }}, but {tools_text}, {state.goal}, {state.render()} stay single.
+
+SELF-CHECK:
+  state = AgentState(goal="Summarize what App/main.py does")
+  print(build_prompt(state, TOOLS))
+  -> Should look the SAME as your old printed prompt, but the file_read line is
+     now generated from the registry.
+  PROOF IT'S GENERIC: temporarily add a 2nd fake tool to TOOLS, e.g.
+     "echo": Tool(name="echo", description="repeats text. args: {text}", run=file_read)
+  print again -> the echo line should appear WITHOUT you editing build_prompt.
+  Then remove the fake tool. If it appeared automatically, the refactor worked.
+
+
+----------------------------------------------------------------
+TASK 4 — Implement Groq (the "brain")
+----------------------------------------------------------------
+CONCEPT:
+  Build the function that turns the prompt into a real decision: build prompt ->
+  call Groq -> parse its JSON -> return an Output. Groq's output is UNTRUSTED
+  (trust boundary), so parse it defensively.
+
+BUILD (a method on Orchestrator — it needs self.llm):
+  - First, give the orchestrator the registry in __init__:  self.tools = TOOLS
+  - Then:
+      def _groq_brain(self, state) -> Output:
+          prompt = build_prompt(state, self.tools)
+          response = self.llm.generate(prompt, temperature=0, json_mode=True)
+          try:
+              data = json.loads(response)
+          except Exception:
+              return Output(action="finish", reason="could not parse model JSON",
+                            args={}, answer="(parse error)")
+          return Output(
+              action=data.get("action", "finish"),
+              reason=data.get("reason", ""),
+              args=data.get("args", {}),
+              answer=data.get("answer"),
+          )
+  (Use .get() with defaults — do NOT do Output(**data); that breaks if Groq adds
+   or drops a key. Defensive reading = trust boundary. Pydantic upgrade is later.)
+  Imports you'll need in orchestrator.py: json (already there), Output (already
+  there), build_prompt from response_synthesizer, and TOOLS / Tool.
+
+SELF-CHECK (this spends a real Groq API call — your GROQ_API_KEY must load):
+  agent = Orchestrator()
+  state = AgentState(goal="Summarize what App/main.py does")
+  print(agent._groq_brain(state))
+  -> You should see a real Output: Groq's reasoning, action="file_read",
+     args={"path": ...} (or similar). THAT is Orion making its own first decision.
+
+
+----------------------------------------------------------------
+WHEN YOU'RE DONE TODAY
+----------------------------------------------------------------
+  1. Write a DAY_7 log (plain language, like DAY_6): what you built (Tool, registry,
+     generic build_prompt, the Groq brain), what confused you, what you learned
+     (Callable, "make it work then clean"), what's next.
+  2. Commit + push:  git add .   ->   git status   ->   git commit -m "..."   ->   git push
+  3. When tokens refresh, paste back: your Tool dataclass, the registry, the new
+     build_prompt + its printed output, _groq_brain + the Output Groq returned.
+     Then we do STEP 3: wire the brain into run_loop with real file_read dispatch
+     (replace the stub) — and watch Orion read a file and decide on its own.
+
+DO NOT wire the brain into run_loop yet. Test each piece in isolation first.
+You've got this — one task at a time, self-check before moving on.

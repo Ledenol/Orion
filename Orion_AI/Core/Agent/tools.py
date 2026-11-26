@@ -6,10 +6,12 @@ TOOLS = {
           name="file_read",
           description='reads a file. args: {"path": "<file path>"}',
           run=file_read,
+          requires_approval = False,
         ),
         "web_search": Tool(
             name= "web_search",
             description='searches the web for up-to-date information. args: {"query": "<search query>"}',
             run=search_response_adapter,
+            requires_approval = False,
         )
     }

@@ -1,0 +1,89 @@
+Day 7 Log
+Date: [30 June, 2026]
+
+WHAT TODAY WAS ABOUT (plain words)
+Made the agent REAL. The loop went from a fake stand-in to actually using a live
+AI (Groq) and real tools. By the end, Orion reads files and searches the web,
+chooses the tool itself, and finishes with an answer — all from the CLI. The old
+single-shot version is fully retired.
+
+WHAT I BUILT (in order)
+1. file_read tool (skills/file_reader.py)
+   - file_read(args) -> Observation. Reads a file at args["path"]. Any failure
+     (missing key, missing file) comes back as a failure Observation, never a crash.
+
+2. The Tool type + registry (learned "Callable" = the type for "a function")
+   - Tool(name, description, run) dataclass in schemas.py. run holds the actual
+     function (passed by name, no parentheses).
+   - TOOLS = a dict {name -> Tool} in tools.py. ONE source of truth: the prompt
+     reads descriptions from it, the loop runs .run from it.
+
+3. The prompt-builder (build_prompt in response_synthesizer.py)
+   - Builds the text sent to the AI each turn: job + tool list (LOOPED from the
+     registry, so adding a tool shows up automatically) + rules + JSON format +
+     the goal + the rendered history.
+
+4. The "brain" (Orchestrator.next_output)
+   - build_prompt -> Groq -> parse the JSON reply into an Output (defensively
+     with .get(), because the AI's output is untrusted).
+
+5. Wired the brain + real tools into run_loop
+   - Replaced the stub with self.next_output(state), and the fake observation with
+     real dispatch: look up the tool in TOOLS, run it, get a real Observation.
+   - Added an "unknown tool" guard so a hallucinated tool name fails gracefully.
+
+6. Second tool: web_search (skills/web_search.py)
+   - Wrote an ADAPTER (search_response_adapter): pulls "query" from args, calls
+     search() -> format_search_results() -> wraps it in an Observation. Added it
+     to TOOLS — and it showed up in the prompt + worked in the loop with ZERO other
+     changes (the Open/Closed payoff).
+
+7. Pointed the CLI at the loop + retired the old pipeline
+   - assistant_service.ask now calls run_loop.
+   - Deleted run(), _decide_skills, the dead build_prompt_* functions,
+     web_search_skill, and tests_baseline.py (it tested the old code).
+
+WHAT WORKED
+- Orion read App/main.py and finished with a correct summary.
+- It picked web_search for news goals and file_read for file goals on its own.
+- Error handling held: a Groq 413 (token limit) was caught gracefully, not a crash.
+
+PROBLEMS I HIT (real ones)
+- The model first guessed a fake path "/path/to/App/main.py" -> fixed with a prompt
+  hint that paths are relative -> then it read the real file.
+- It over-searched (8 times, same query) and wouldn't finish -> the weak 8B model's
+  judgment limit; needed blunt "finish now" rules.
+- A prompt rule "don't skip anything" made it hoard data and crash json_mode (400).
+  Reworded it.
+- The finish answer got truncated -> raised max_tokens to 2000.
+- Grounding error: asked about my OWN orchestrator.py, it web-searched and described
+  a DIFFERENT GitHub project as fact. Saying "my file" fixed it -> shows it needs
+  tool-selection guidance.
+
+WHAT I LEARNED
+- Callable: a function is a value you can store in a field / pass around.
+- Registry + Open/Closed: add a tool in ONE place; the prompt and loop pick it up.
+- Adapter pattern: reshape an existing function's output to fit a new interface.
+- Trust boundary: validate the AI's output; trust my own tools' output.
+- Tool DESCRIPTIONS drive which tool the model picks — wording matters a lot.
+- The weak-model wall: the loop HARNESSES reasoning, it can't CREATE it. Prompt
+  tweaks help only so much; a stronger model is the real fix.
+- Read the OUTPUT, not just the code — it exposes bugs the code hides.
+- Migration safety: switch the consumer -> verify -> delete the old code (never
+  delete the working path before the replacement works).
+
+WHAT IS DONE
+- A working two-tool agent (file_read + web_search) in the CLI.
+- Old single-shot pipeline fully retired; project cleaned up.
+- WEEK_1_REPORT.txt written (full system: components, connections, workflow).
+
+KNOWN LIMITATIONS (carry into next week)
+- Weak model: shaky judgment, grounding/tool-choice errors, can over-search.
+- No path discovery (guesses paths); context bloat hits the free TPM limit.
+- Cross-turn memory not wired (each CLI turn is independent).
+
+WHAT'S NEXT (Week 2)
+Day 1: safety gate (approval.py) — y/N before any write/delete/shell action.
+Day 2: shell tool (gated). Day 3: file_write tool (gated, preview the change).
+Day 4: code_search (glob + grep). Day 5: chain tools on a real multi-step task.
+(Side note for later: a separate RAG project exists to fold in around Month 3.)

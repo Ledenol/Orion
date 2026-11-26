@@ -1,3 +1,4 @@
+from datetime import datetime, date, time, timedelta
 def build_prompt(state, tools) -> str:
     tool_lines = []
     for tool in tools.values():
@@ -20,6 +21,7 @@ Rules:
 - When you use the finish action, put a clear, complete answer in the answer field — in your own words, addressing the goal, based on what you found.
 - If your history already contains search results relevant to the goal, you MUST use finish now. NEVER run a search you have already run.
 - When you finish synthesize the reponses yourself in a bullet point manner with MINIMUM 5 points
+- todays date is {date.today().strftime("%Y-%m-%d")}
 Reply in EXACTLY this JSON shape:
 {{"reason": "...", "action": "...", "args": {{ }}, "answer": "..."}}
 

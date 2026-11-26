@@ -29,3 +29,4 @@ class Tool:
     name: str
     description: str
     run: Callable[[dict], Observation] 
+    requires_approval: bool = False

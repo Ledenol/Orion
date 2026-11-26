@@ -58,8 +58,6 @@ def _search_duckduckgo(query: str, num_results: int = 5) -> list[dict]:
         print(f"[WebSearch] DuckDuckGo error: {e}")
         return []
 
-
-# --- Serper (fallback for everyday search) ---
 def _search_serper(query: str, num_results: int = 5) -> list[dict]:
     url = "https://google.serper.dev/search"
     headers = {"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"}

@@ -1,0 +1,202 @@
+================================================================================
+PROJECT ORION — WEEK 1 REPORT
+What's built, how it connects, and how it works (as of end of Day 7)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. WHAT ORION IS RIGHT NOW
+--------------------------------------------------------------------------------
+Orion is a CLI "secondary developer" agent. You type a goal; it works in a LOOP
+— decide one action -> do it -> look at the result -> decide again — until it can
+answer, then it finishes. It can read files from the project and search the web,
+and it chooses which tool to use on its own.
+
+This replaced the original "single-shot" Orion (decide once -> answer once),
+which has now been fully retired.
+
+
+--------------------------------------------------------------------------------
+2. THE 7-DAY ARC (how we got here)
+--------------------------------------------------------------------------------
+Day 1  Basic CLI assistant on the Groq API (text in -> answer out).
+Day 2  Web search tool (DuckDuckGo / Serper / Tavily, with fallbacks).
+Day 3  Orchestrator + an LLM classifier that decides when to search (single-shot).
+Day 4  Refactor: one uniform skill contract + a registry (add a skill = one file).
+Day 5  Re-plan to a focused 3-month goal; learn the ReAct loop idea; design the
+       action protocol on paper.
+Day 6  Build the agent loop (data schemas + state/memory + the loop) using a FAKE
+       stand-in ("stub") to prove the loop works.
+Day 7  Build the first real tool (file_read), the prompt-builder, the Tool
+       registry, the Groq "brain", wire the loop to use real tools, add web_search,
+       point the CLI at the loop, and retire the old single-shot code.
+
+
+--------------------------------------------------------------------------------
+3. FILE STRUCTURE (live code only, after cleanup)
+--------------------------------------------------------------------------------
+Orion_AI/
+├── App/
+│   └── main.py                  CLI entry — the chat loop (REPL)
+├── services/
+│   └── assistant_service.py     thin wrapper: hands the query to the orchestrator
+├── Core/Agent/
+│   ├── orchestrator.py          the BRAIN + the LOOP
+│   ├── state.py                 AgentState — the agent's memory for one task
+│   ├── schemas.py               the data "shapes" (Output, Observation, etc.)
+│   └── tools.py                 TOOLS registry (file_read, web_search)
+├── skills/
+│   ├── file_reader.py           file_read tool
+│   ├── web_search.py            search engines + the web_search tool
+│   └── response_synthesizer.py  build_prompt (the agent's prompt)
+├── interfaces/llm/
+│   ├── groq_client.py           talks to the Groq API
+│   └── openai_client.py         (unused — kept for future multi-LLM)
+├── tests/
+│   └── test.py                  manual scratch test
+└── .env                         secret API keys (git-ignored)
+
+
+--------------------------------------------------------------------------------
+4. EVERY COMPONENT AND WHAT IT DOES
+--------------------------------------------------------------------------------
+
+schemas.py — the data "shapes" (templates) everything passes around:
+  - Output(action, reason, args, answer)   what the AI decides each turn
+  - Observation(success, tool, data, error) the result of running one tool
+  - HistoryStep(iteration, output, observation)  one full turn (decision + result)
+  - Tool(name, description, run)            one usable tool (run = the function)
+  - Input(goal, available_tools, rules, output_schema)
+        NOTE: defined but NOT currently wired — build_prompt reads state/tools
+        directly. Keep as a design note or remove later.
+
+state.py — AgentState: the agent's working memory for ONE task:
+  - holds: goal, history (list of HistoryStep), max_iterations (safety cap)
+  - iteration (property)  -> how many steps taken so far (len of history)
+  - add_step(output, observation) -> record one finished turn
+  - render() -> turn the whole history into readable text for the prompt
+        (the AI forgets between calls, so we re-send the history every turn)
+
+tools.py — TOOLS: the registry. A dict {name -> Tool}. One source of truth that
+  both the prompt-builder (reads descriptions) and the loop (runs .run) use.
+  Currently: "file_read" and "web_search".
+
+file_reader.py:
+  - file_read(args) -> Observation   reads a file at args["path"]; any failure
+        (missing key, missing file) comes back as a failure Observation, never a crash.
+
+web_search.py:
+  - search(query, n) -> list[dict]   the "main router": picks an engine and fetches
+        (Tavily for deep research, Serper default, DuckDuckGo fallback)
+  - _search_tavily / _search_serper / _search_duckduckgo   the engine calls
+  - _is_deep_research / _is_news_query   routing helpers
+  - format_search_results(list) -> str   turns raw results into readable text
+  - search_response_adapter(args) -> Observation   the web_search TOOL:
+        search(query) -> format -> wrap in an Observation
+
+response_synthesizer.py:
+  - build_prompt(state, tools) -> str   builds the text sent to the AI each turn:
+        job + tool list (looped from the registry) + rules + JSON format
+        + the goal + the rendered history
+
+groq_client.py:
+  - GroqClient.generate(prompt, temperature, max_tokens, json_mode) -> str
+        the only place that talks to the LLM API. Knows nothing about agents —
+        prompt string in, text out. (This is what makes swapping models easy.)
+
+orchestrator.py — the coordinator:
+  - next_output(state) -> Output   THE BRAIN: build_prompt -> Groq -> parse JSON
+        into an Output (defensively, with .get()).
+  - run_loop(goal) -> str   THE LOOP: see workflow below.
+  - CAP_REACHED   sentinel returned when the loop hits the iteration cap.
+
+assistant_service.py:
+  - AssistantService.ask(query) -> str   strips input, calls orchestrator.run_loop.
+
+main.py:
+  - main()   the CLI: read input -> ask the service -> print the answer -> repeat.
+
+
+--------------------------------------------------------------------------------
+5. HOW IT ALL CONNECTS
+--------------------------------------------------------------------------------
+User
+ └─> main.py (CLI loop)
+      └─> AssistantService.ask(query)
+           └─> Orchestrator.run_loop(goal)
+                ├─ creates AgentState(goal)              [state.py]
+                └─ each turn:
+                    ├─ next_output(state)
+                    │    ├─ build_prompt(state, tools)   [response_synthesizer.py]
+                    │    │     reads state.goal, state.render(), tool descriptions
+                    │    ├─ GroqClient.generate(...)      [groq_client.py]
+                    │    └─ parse JSON -> Output          [schemas.py]
+                    ├─ if action == "finish" -> return answer
+                    ├─ else: TOOLS[action].run(args) -> Observation
+                    │     (file_read [file_reader.py] OR search_response_adapter [web_search.py])
+                    └─ state.add_step(output, observation)
+
+
+--------------------------------------------------------------------------------
+6. THE WORKFLOW (the agent loop, step by step)
+--------------------------------------------------------------------------------
+1. User types a goal in the CLI.
+2. The service passes it to run_loop.
+3. run_loop creates a fresh AgentState (goal + empty history + cap of 8).
+4. Each turn:
+   a. next_output builds the prompt (goal + tools + rules + history) and asks
+      Groq for the next action as JSON.
+   b. Groq returns {reason, action, args, answer}; we parse it into an Output.
+   c. If action == "finish"  -> return the answer; the loop ends.
+   d. Otherwise -> look up the tool in TOOLS, run it with args, get an Observation
+      (file contents, search results, or an error).
+   e. Record (output + observation) as a HistoryStep in the state.
+5. Repeat until "finish" OR the safety cap is hit (returns CAP_REACHED).
+
+Two ways the loop stops:
+   - the model decides it is done (emits "finish"), or
+   - the code's iteration cap fires (so it can never loop forever).
+
+
+--------------------------------------------------------------------------------
+7. KEY DESIGN IDEAS LEARNED & APPLIED
+--------------------------------------------------------------------------------
+- ReAct loop: the model only emits text; the LOOP (our code) does the acting.
+  "Model proposes, code disposes."
+- Uniform contracts: every tool returns the same Observation shape; the registry
+  lets us add a tool in ONE place (Open/Closed principle).
+- Composition: HistoryStep = Output + Observation (reuse, don't duplicate).
+- Trust boundary: validate the model's output (defensive .get()); trust our own
+  tools' output.
+- Dependency injection / ports: the LLM client is a thin, swappable adapter, so
+  changing models is a one-file change.
+- Build it ugly, then clean it: stub the loop first, then add real tools.
+
+
+--------------------------------------------------------------------------------
+8. KNOWN LIMITATIONS (honest state)
+--------------------------------------------------------------------------------
+- Weak model (llama-3.1-8b-instant): shaky judgment — sometimes over-searches,
+  re-reads the same file, or won't finish without strong prompt rules.
+- Grounding / tool choice: it sometimes web-searches things it should READ
+  (e.g. a class in our own code) and can state irrelevant results as fact.
+- No path discovery: it guesses file paths and gets them wrong.
+- Context bloat: re-reading files balloons the prompt and can hit the Groq
+  free-tier limit (6000 tokens/minute -> 413 errors).
+- Web answers are limited to search snippets (no full-page reading yet).
+- Cross-turn memory not wired: each CLI turn is independent (fresh state).
+- Input schema defined but unused.
+
+
+--------------------------------------------------------------------------------
+9. NEXT STEPS (highest impact first)
+--------------------------------------------------------------------------------
+1. Stronger model (NVIDIA/DeepSeek or llama-3.3-70b) — fixes most judgment/
+   grounding/finishing issues. One-file swap behind the LLM interface.
+2. Tool-selection guidance in the prompt: "file_read for project code,
+   web_search for external/current info."
+3. Path discovery / a list_files tool (Week 7) — so it reads real files instead
+   of guessing.
+4. Context management (Week 3) — don't re-feed huge file contents every turn.
+5. Quiet run_loop's debug prints for the CLI (gate behind a debug flag).
+6. A real eval harness (Week 4) to measure improvements.
+================================================================================
